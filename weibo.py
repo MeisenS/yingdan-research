@@ -9,9 +9,22 @@ def get_tweets_by_date(uuid, span):
     now = datetime.datetime.now(tz=tz.tzlocal())
     six_months_ago = now - datetime.timedelta(days=span*30)
     tweets = []
-    all_tags = []  # This will store a list of lists of tags
+    all_tags = [] 
+    likes = []
+    comments = []
+    reposts = []
+
+    description = ''
+    followers = ''
+    statuses = ''
+    verification = ''
+    gender = ''
+    geolocation = ''
+
+    zhiding = 0
 
     for tweet in get_weibo_tweets(tweet_container_id=get_tweet_containerid(uid=uuid), pages=100):
+       
         tweet_date_str = tweet['mblog']['created_at']
         tweet_date = datetime.datetime.strptime(tweet_date_str, '%a %b %d %H:%M:%S %z %Y')
 
@@ -19,51 +32,80 @@ def get_tweets_by_date(uuid, span):
             tweet_text = tweet.get('mblog').get('text')
             clean_text = clean_html(tweet_text)
             tags = extract_hashtags(clean_text)
-            tweets.append(clean_text)
-            all_tags.append(tags)  # Append the list of tags for each tweet
-        else:
-            break
 
-    return tweets, all_tags
+            tweets.append(clean_text)
+            all_tags.append(tags)  
+            likes.append(tweet.get('mblog').get('attitudes_count'))
+            comments.append(tweet.get('mblog').get('comments_count'))
+            reposts.append(tweet.get('mblog').get('reposts_count'))
+
+            description = tweet.get('mblog').get('user').get('description')
+            followers = tweet.get('mblog').get('user').get('followers_count')
+            statuses = tweet.get('mblog').get('user').get('statuses_count')
+            verification = tweet.get('mblog').get('user').get('verified')
+            gender = tweet.get('mblog').get('user').get('gender')
+            geolocation = tweet.get('mblog').get('user').get('region_name')
+            if zhiding < 5:
+                
+                zhiding += 1
+        elif(zhiding >= 5 and tweet_date <= six_months_ago):
+            break
+            
+                
+        
+    return tweets, all_tags, likes, comments, reposts, uuid, description, followers, statuses, verification, gender, geolocation
 
 
 def load_file(file_path):
     df = pd.read_excel(file_path, engine='openpyxl')
-    return df['uid_star'].tolist()
+    return dict(zip(df['name'], df['uid_star']))
 
-def write_to_excel(tweets, tags):
+
+def write_to_excel(names, tweets, tags, likes, comments, reposts, uuid, description, followers, statuses, verification, gender, geolocation):
     df = pd.DataFrame({
         'tweets': tweets,
-        'tags': [', '.join(tag_list) for tag_list in tags]  # Convert list of tags to comma-separated strings
+        'tags': [', '.join(tag_list) for tag_list in tags],  # Convert list of tags to comma-separated strings
+        'likes':likes,
+        'comments':comments,
+        'reposts':reposts,
     })
-    excel_file_path = 'tweet_texts.xlsx'
-    df.to_excel(excel_file_path, index=False, engine='openpyxl')
-    print(f"Data has been saved to {excel_file_path}")
+    
+    df2= pd.DataFrame({
+        'uid': uuid,
+        'description': description,
+        'followers':followers,
+        'statuses':statuses,
+        'verification':verification,
+        'gender':gender,
+        'geolocation':geolocation,
+    },index=[0])
+    
+    with pd.ExcelWriter(names+'_tweet_texts.xlsx') as writer:
+   
+        df2.to_excel(writer, sheet_name="basic_info", index=False)
+        df.to_excel(writer, sheet_name="tweets_within_6months", index=False)
 
+    print(f"Data has been saved")
 
 
 def clean_html(html_content):
-    # Create a BeautifulSoup object
+
     soup = BeautifulSoup(html_content, 'html.parser')
-    
-    # Extract text from the BeautifulSoup object
     text = soup.get_text(separator=' ')
-    
+
     return text
 
 def extract_hashtags(text):
-    # Regex to find hashtags: \#\w+
     hashtags = re.findall(r'\#\w+', text)
     return hashtags
 
-
 def main():
-    namelist = load_file('taiwan_celeb.xlsx')
-    for name in namelist:
-        print(f"Processing: {name}")
-        twitext, tags = get_tweets_by_date(name, span=6)
-        write_to_excel(twitext, tags)
-
+    name_uid_dict = load_file('taiwan_celeb.xlsx')
+    for name, uuid in name_uid_dict.items():
+        print(f"Processing: {name} with UID: {uuid}")
+        tweets, tags, likes, comments, reposts, uuid, description, followers, statuses, verification, gender, geolocation= get_tweets_by_date(uuid, span=6)
+        write_to_excel(name, tweets, tags, likes, comments, reposts, uuid, description, followers, statuses, verification, gender, geolocation)
 
 if __name__ == '__main__':
     main()
+
