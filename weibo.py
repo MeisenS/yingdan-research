@@ -4,22 +4,29 @@ from weibo_scraper import *
 from dateutil import tz
 from bs4 import BeautifulSoup
 import re
+import os
 
 def get_tweets_by_date(uuid, span):
     now = datetime.datetime.now(tz=tz.tzlocal())
     six_months_ago = now - datetime.timedelta(days=span*30)
+    ids = []
+    dates = []
+
     tweets = []
     all_tags = [] 
     likes = []
     comments = []
     reposts = []
+    geolocation = []
 
+    screenName = ''
+    verified_reason = ''
     description = ''
     followers = ''
     statuses = ''
     verification = ''
     gender = ''
-    geolocation = ''
+   
 
     zhiding = 0
 
@@ -35,25 +42,29 @@ def get_tweets_by_date(uuid, span):
 
             tweets.append(clean_text)
             all_tags.append(tags)  
+            ids.append(tweet.get('mblog').get('id'))
+            dates.append(tweet_date)
             likes.append(tweet.get('mblog').get('attitudes_count'))
             comments.append(tweet.get('mblog').get('comments_count'))
             reposts.append(tweet.get('mblog').get('reposts_count'))
 
+            screenName = tweet.get('mblog').get('user').get('screen_name')
+            verified_reason = tweet.get('mblog').get('user').get('verified_reason')
             description = tweet.get('mblog').get('user').get('description')
             followers = tweet.get('mblog').get('user').get('followers_count')
             statuses = tweet.get('mblog').get('user').get('statuses_count')
             verification = tweet.get('mblog').get('user').get('verified')
             gender = tweet.get('mblog').get('user').get('gender')
-            geolocation = tweet.get('mblog').get('user').get('region_name')
+            geolocation.append(tweet.get('mblog').get('region_name'))
+            
             if zhiding < 5:
-                
                 zhiding += 1
         elif(zhiding >= 5 and tweet_date <= six_months_ago):
             break
+
+
             
-                
-        
-    return tweets, all_tags, likes, comments, reposts, uuid, description, followers, statuses, verification, gender, geolocation
+    return ids, dates, tweets, all_tags, likes, comments, reposts, uuid,screenName, description, followers, statuses, verification,verified_reason, gender, geolocation
 
 
 def load_file(file_path):
@@ -61,31 +72,36 @@ def load_file(file_path):
     return dict(zip(df['name'], df['uid_star']))
 
 
-def write_to_excel(names, tweets, tags, likes, comments, reposts, uuid, description, followers, statuses, verification, gender, geolocation):
-    df = pd.DataFrame({
-        'tweets': tweets,
-        'tags': [', '.join(tag_list) for tag_list in tags],  # Convert list of tags to comma-separated strings
-        'likes':likes,
-        'comments':comments,
-        'reposts':reposts,
-    })
-    
-    df2= pd.DataFrame({
-        'uid': uuid,
-        'description': description,
-        'followers':followers,
-        'statuses':statuses,
-        'verification':verification,
-        'gender':gender,
-        'geolocation':geolocation,
-    },index=[0])
-    
-    with pd.ExcelWriter(names+'_tweet_texts.xlsx') as writer:
+def write_to_csv(ids, dates, tweets, tags, likes, comments, reposts, uuid,screenName, description, followers, statuses, verification,verified_reason, gender, geolocation):
    
-        df2.to_excel(writer, sheet_name="basic_info", index=False)
-        df.to_excel(writer, sheet_name="tweets_within_6months", index=False)
+    df_tweets = pd.DataFrame({
+        'id': ids,
+        'date': dates,
+        'geolocation' : geolocation,
+        'tweets': tweets,
+        'tags': [', '.join(tag_list) for tag_list in tags],
+        'likes': likes,
+        'comments': comments,
+        'reposts': reposts,
+        'star_id' : uuid,
+        'screen_name' : screenName,
+        'gender' : gender,
+        'description' : description,
+        'follow_count' : followers,
+        'statuses_count' : statuses,
+        'verification' : verification,
+        'verified_reason' : verified_reason,
+        
+    })
 
-    print(f"Data has been saved")
+    file_path = 'taiwan_celeb(6months).csv'
+    headers = not os.path.exists(file_path)
+
+    df_tweets.to_csv(file_path, mode='a', index=False, header = headers)
+
+    
+    print(f"Data has been saved for {screenName}")
+
 
 
 def clean_html(html_content):
@@ -103,8 +119,12 @@ def main():
     name_uid_dict = load_file('taiwan_celeb.xlsx')
     for name, uuid in name_uid_dict.items():
         print(f"Processing: {name} with UID: {uuid}")
-        tweets, tags, likes, comments, reposts, uuid, description, followers, statuses, verification, gender, geolocation= get_tweets_by_date(uuid, span=6)
-        write_to_excel(name, tweets, tags, likes, comments, reposts, uuid, description, followers, statuses, verification, gender, geolocation)
+        ids, dates, tweets, all_tags, likes, comments, reposts, uuid,screenName, description, followers, statuses, verification,verified_reason, gender, geolocation = get_tweets_by_date(uuid, span=6)
+        write_to_csv(ids, dates, tweets, all_tags, likes, comments, reposts, uuid,screenName, description, followers, statuses, verification,verified_reason, gender, geolocation)
+
+if __name__ == '__main__':
+    main()
+
 
 if __name__ == '__main__':
     main()
