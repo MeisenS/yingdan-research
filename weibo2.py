@@ -37,34 +37,39 @@ def get_tweets_by_date(uuid, span):
        
         tweet_date_str = tweet['mblog']['created_at']
         tweet_date = datetime.datetime.strptime(tweet_date_str, '%a %b %d %H:%M:%S %z %Y')
+        
 
         if tweet_date > six_months_ago:
             tweet_text = tweet.get('mblog').get('text')
             clean_text = clean_html(tweet_text)
             cur_id = tweet.get('mblog').get('id')
+            if clean_text[-2::] == '全文':
+                full_text = full_tweet(cur_id)
+                clean_text = clean_html(full_text)
+            
+            tags = extract_hashtags(clean_text)
 
-            if(clean_text[-2::]=='全文'):
-                neww=full_tweet(cur_id)
-                tweets.append(neww)
-                tags = extract_hashtags(neww)
-            else:
-                tweets.append(clean_text)
-                tags = extract_hashtags(clean_text)
-            all_tags.append(tags)  
-            ids.append(cur_id)
-            dates.append(tweet_date)
-            likes.append(tweet.get('mblog').get('attitudes_count'))
-            comments.append(tweet.get('mblog').get('comments_count'))
-            reposts.append(tweet.get('mblog').get('reposts_count'))
+            tweet_data = {
+                'id': cur_id,
+                'date': tweet_date,
+                'geolocation': tweet.get('mblog').get('region_name'),
+                'tweets': clean_text,
+                'tags': ', '.join(tags),
+                'likes': tweet.get('mblog').get('attitudes_count'),
+                'comments': tweet.get('mblog').get('comments_count'),
+                'reposts': tweet.get('mblog').get('reposts_count'),
+                'star_id': uuid,
+                'screen_name': tweet.get('mblog').get('user').get('screen_name'),
+                'gender': tweet.get('mblog').get('user').get('gender'),
+                'description': tweet.get('mblog').get('user').get('description'),
+                'follow_count': tweet.get('mblog').get('user').get('followers_count'),
+                'statuses_count': tweet.get('mblog').get('user').get('statuses_count'),
+                'verification': tweet.get('mblog').get('user').get('verified'),
+                'verified_reason': tweet.get('mblog').get('user').get('verified_reason'),
+            }
 
-            screenName = tweet.get('mblog').get('user').get('screen_name')
-            verified_reason = tweet.get('mblog').get('user').get('verified_reason')
-            description = tweet.get('mblog').get('user').get('description')
-            followers = tweet.get('mblog').get('user').get('followers_count')
-            statuses = tweet.get('mblog').get('user').get('statuses_count')
-            verification = tweet.get('mblog').get('user').get('verified')
-            gender = tweet.get('mblog').get('user').get('gender')
-            geolocation.append(tweet.get('mblog').get('region_name'))
+            write_to_csv(tweet_data, headers=False)
+          
             
             if zhiding < 5:
                 zhiding += 1
@@ -89,37 +94,12 @@ def load_excel_as_json(file_path):
     return final
 
 
-def write_to_csv(ids, dates, tweets, tags, likes, comments, reposts, uuid,screenName, description, followers, statuses, verification,verified_reason, gender, geolocation):
-   
-    df_tweets = pd.DataFrame({
-        'id': ids,
-        'date': dates,
-        'geolocation' : geolocation,
-        'tweets': tweets,
-        'tags': [', '.join(tag_list) for tag_list in tags],
-        'likes': likes,
-        'comments': comments,
-        'reposts': reposts,
-        'star_id' : uuid,
-        'screen_name' : screenName,
-        'gender' : gender,
-        'description' : description,
-        'follow_count' : followers,
-        'statuses_count' : statuses,
-        'verification' : verification,
-        'verified_reason' : verified_reason,
-        
-    })
-
+def write_to_csv(tweet_data, headers=False):
     file_path = 'celeb_gov(12months).csv'
-    headers = not os.path.exists(file_path)
+    headers = not os.path.exists(file_path)  
 
-    df_tweets.to_csv(file_path, mode='a', index=False, header = headers)
-    
-    print(f"Data has been saved for {screenName}")
-
-def write_other_page():
-    pass
+    df_tweet = pd.DataFrame([tweet_data])
+    df_tweet.to_csv(file_path, mode='a', index=False, header=headers)
 
 
 def clean_html(html_content):
@@ -143,13 +123,14 @@ def main():
         need.append(item['province_gov_uid'])
         need.append(item['city_gov_uid'])
     need=set(need)
-    for item in need:
-        print(f"Processing: {item}")
-        if type(item) == type(2.0):
-            item = int(item)
-        ids, dates, tweets, all_tags, likes, comments, reposts, uuid,screenName, description, followers, statuses, verification,verified_reason, gender, geolocation = get_tweets_by_date(item, span=12)
-        write_to_csv(ids, dates, tweets, all_tags, likes, comments, reposts, uuid,screenName, description, followers, statuses, verification,verified_reason, gender, geolocation)
-       
+    for uid in need:
+        if type(uid)==type(2.0):
+            uid=int(uid)
+        print(f"Processing: {uid}")
+        get_tweets_by_date(int(uid), span=12)
+
+
+
 if __name__ == '__main__':
     main()
 
