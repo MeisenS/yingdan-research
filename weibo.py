@@ -247,7 +247,7 @@ class Weibo(object):
 
     def user_to_csv(self):
         """将爬取到的用户信息写入csv文件"""
-        file_dir = '$HOME/weibo-data'
+        file_dir = './weibo-data'
         if not os.path.isdir(file_dir):
             os.makedirs(file_dir)
         file_path = file_dir + os.sep + "users.csv"
