@@ -247,7 +247,7 @@ class Weibo(object):
 
     def user_to_csv(self):
         """将爬取到的用户信息写入csv文件"""
-        file_dir = './weibo-data'
+        file_dir = os.path.split(os.path.realpath(__file__))[0] + os.sep + "weibo"
         if not os.path.isdir(file_dir):
             os.makedirs(file_dir)
         file_path = file_dir + os.sep + "users.csv"
@@ -2086,6 +2086,7 @@ def get_config():
     try:
         with open(config_path, encoding="utf-8") as f:
             config = json.loads(f.read())
+            # 重命名一些key, 但向前兼容
             handle_config_renaming(config, oldName="filter", newName="only_crawl_original")
             handle_config_renaming(config, oldName="result_dir_name", newName="user_id_as_folder_name")
             return config
